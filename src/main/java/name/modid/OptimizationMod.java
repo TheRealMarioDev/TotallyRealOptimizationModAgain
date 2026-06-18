@@ -9,6 +9,7 @@ import name.modid.horror.scare.AmbientScareManager;
 import name.modid.horror.spy.SpyNetworking;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import name.modid.horror.config.HorrorConfigManager;
 
 /**
  * Common (server + client) mod entry point.
@@ -28,11 +29,12 @@ public class OptimizationMod implements ModInitializer {
     @Override
     public void onInitialize() {
         HorrorOperator.LOGGER.info("[HorrorOperator] Initialising subsystems...");
-
+        HorrorConfigManager.load();
         // 1. Register all custom payload types with PayloadTypeRegistry (both S2C and C2S)
         //    Must happen before any command or event can try to send a packet.
         HorrorNetworking.registerPayloadTypes();
         SpyNetworking.registerPayloadTypes();
+
 
         // 2. Register Fabric event hooks that must be active before the first world tick
         CurseRespawnHandler.register();   // ServerPlayerEvents.COPY_FROM — keeps curse alive through death

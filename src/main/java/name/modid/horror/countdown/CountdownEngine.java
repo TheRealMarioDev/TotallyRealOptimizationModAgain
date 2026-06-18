@@ -1,6 +1,7 @@
 package name.modid.horror.countdown;
 
 import name.modid.horror.HorrorOperator;
+import name.modid.horror.config.HorrorConfigManager;
 import name.modid.horror.network.CountdownPayload;
 import name.modid.horror.network.HorrorNetworking;
 import name.modid.horror.network.PanicScarePayload;
@@ -9,10 +10,12 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
-
+import net.minecraft.resources.ResourceLocation;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 
 /**
  * Distance countdown that always decreases by 1 block,
@@ -20,23 +23,22 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class CountdownEngine {
 
+    /**
+     * Kept temporarily for compatibility.
+     * We'll remove this when ScareOrchestrator is updated.
+     */
     public static final int START_DISTANCE = 100;
 
+    /**
+     * Kept temporarily for compatibility.
+     */
     public static final int BASE_DECREMENT = 1;
 
-    public static final int RUN_THRESHOLD = 35;
+    private static final Map<UUID, CountdownTask> ACTIVE_COUNTDOWNS =
+            new ConcurrentHashMap<>();
 
-    /** Starts at 1 second between decreases. */
-    private static final int START_INTERVAL = 20;
-
-    /** Fastest speed possible (every tick). */
-    private static final int MIN_INTERVAL = 1;
-
-    /** Lower = faster acceleration. */
-    private static final double SPEEDUP = 0.97;
-
-    private static final Map<UUID, CountdownTask> ACTIVE_COUNTDOWNS = new ConcurrentHashMap<>();
     private static boolean registered = false;
+    private static final java.util.Random RANDOM = new java.util.Random();
 
     public static class CountdownTask {
 
@@ -47,10 +49,9 @@ public final class CountdownEngine {
 
         int ticksElapsed = 0;
         int stepsElapsed = 0;
-
         boolean creepStarted = false;
 
-        double currentInterval = START_INTERVAL;
+        double currentInterval;
         double tickAccumulator = 0;
 
         CountdownTask(
@@ -60,6 +61,11 @@ public final class CountdownEngine {
                 String endSoundStr
         ) {
             this.blocksLeft = blocksLeft;
+
+            this.currentInterval =
+                    HorrorConfigManager.getConfig()
+                            .countdown
+                            .startInterval;
 
             this.tickSound =
                     (tickSoundStr != null && !tickSoundStr.isEmpty())
@@ -88,13 +94,18 @@ public final class CountdownEngine {
     private CountdownEngine() {}
 
     public static void register() {
-        if (registered) return;
+
+        if (registered) {
+            return;
+        }
 
         registered = true;
 
         ServerTickEvents.END_SERVER_TICK.register(CountdownEngine::tick);
 
-        HorrorOperator.LOGGER.info("[HorrorOperator] CountdownEngine registered.");
+        HorrorOperator.LOGGER.info(
+                "[HorrorOperator] CountdownEngine registered."
+        );
     }
 
     public static void start(
@@ -104,6 +115,7 @@ public final class CountdownEngine {
             String tickSound,
             String endSound
     ) {
+
         ACTIVE_COUNTDOWNS.put(
                 target.getUUID(),
                 new CountdownTask(
@@ -122,7 +134,9 @@ public final class CountdownEngine {
     }
 
     public static void cancel(ServerPlayer target) {
+
         if (ACTIVE_COUNTDOWNS.remove(target.getUUID()) != null) {
+
             HorrorOperator.LOGGER.info(
                     "[HorrorOperator] Countdown cancelled for {}.",
                     target.getGameProfile().getName()
@@ -167,21 +181,100 @@ public final class CountdownEngine {
 
             task.stepsElapsed++;
 
+            int blocks = task.blocksLeft;
+            if (blocks <= 50 && RANDOM.nextInt(80) == 0) {
+
+                target.addEffect(
+                        new MobEffectInstance(
+                                MobEffects.DARKNESS,
+                                30,
+                                0,
+                                false,
+                                false,
+                                true
+                        )
+                );
+            }
+            if (blocks <= 25 && RANDOM.nextInt(60) == 0) {
+
+                target.addEffect(
+                        new MobEffectInstance(
+                                MobEffects.CONFUSION,
+                                40,
+                                0,
+                                false,
+                                false,
+                                true
+                        )
+                );
+            }
             // Accelerate countdown
             task.currentInterval =
                     Math.max(
-                            MIN_INTERVAL,
-                            task.currentInterval * SPEEDUP
+                            HorrorConfigManager.getConfig()
+                                    .countdown
+                                    .minimumInterval,
+
+                            task.currentInterval *
+                                    HorrorConfigManager.getConfig()
+                                            .countdown
+                                            .speedupMultiplier
                     );
+
+            if (blocks <= 40 && RANDOM.nextInt(100) == 0) {
+
+                target.sendSystemMessage(
+                        net.minecraft.network.chat.Component.literal(
+                                "§8<§f???§8> §7I see you."
+                        )
+                );
+            }
+
+            if (blocks <= 35 && RANDOM.nextInt(50) == 0) {
+
+                target.playNotifySound(
+                        SoundEvent.createVariableRangeEvent(
+                                new net.minecraft.resources.ResourceLocation(
+                                        "minecraft:block.stone.step"
+                                )
+                        ),
+                        SoundSource.HOSTILE,
+                        1.0f,
+                        0.8f + (RANDOM.nextFloat() * 0.4f)
+                );
+            }
 
             if (task.blocksLeft <= 0) {
 
                 if (task.endSound != null) {
+
                     target.playNotifySound(
                             SoundEvent.createVariableRangeEvent(task.endSound),
                             SoundSource.MASTER,
                             1.0f,
                             0.9f
+                    );
+
+                    target.playNotifySound(
+                            SoundEvent.createVariableRangeEvent(
+                                    new net.minecraft.resources.ResourceLocation(
+                                            "minecraft:entity.elder_guardian.curse"
+                                    )
+                            ),
+                            SoundSource.MASTER,
+                            2.0f,
+                            1.0f
+                    );
+
+                    target.playNotifySound(
+                            SoundEvent.createVariableRangeEvent(
+                                    new net.minecraft.resources.ResourceLocation(
+                                            "minecraft:entity.warden.roar"
+                                    )
+                            ),
+                            SoundSource.MASTER,
+                            2.0f,
+                            1.0f
                     );
                 }
 
@@ -206,7 +299,10 @@ public final class CountdownEngine {
             }
 
             if (!task.creepStarted &&
-                    task.blocksLeft <= RUN_THRESHOLD) {
+                    task.blocksLeft <=
+                            HorrorConfigManager.getConfig()
+                                    .countdown
+                                    .runThreshold) {
 
                 task.creepStarted = true;
 
@@ -216,7 +312,25 @@ public final class CountdownEngine {
                                 PanicScarePayload.CREEP_DISTORT
                         )
                 );
+            }else if (task.blocksLeft <= HorrorConfigManager.getConfig()
+                    .countdown.runThreshold) {
+
+                if (task.stepsElapsed % 3 == 0) {
+
+                    target.playNotifySound(
+                            SoundEvent.createVariableRangeEvent(
+                                    new ResourceLocation(
+                                            "minecraft:block.note_block.basedrum"
+                                    )
+                            ),
+                            SoundSource.MASTER,
+                            1.0f,
+                            0.6f
+                    );
+                }
             }
+
+
 
             if (task.ticksElapsed % task.tickSoundInterval() == 0
                     && task.tickSound != null) {
@@ -229,13 +343,41 @@ public final class CountdownEngine {
                 );
             }
 
-            HorrorNetworking.sendTo(
-                    target,
-                    new CountdownPayload(
-                            task.blocksLeft,
-                            false
-                    )
-            );
+            int runThreshold =
+                    HorrorConfigManager.getConfig()
+                            .countdown
+                            .runThreshold;
+
+            if (task.blocksLeft <= runThreshold) {
+
+                target.displayClientMessage(
+                        net.minecraft.network.chat.Component.literal("RUN"),
+                        true
+                );
+            }
+            else {
+
+                target.displayClientMessage(
+                        net.minecraft.network.chat.Component.literal(
+                                "It is " + task.blocksLeft + " blocks away."
+                        ),
+                        true
+                );
+            }
+
+            if (task.blocksLeft <=
+                    HorrorConfigManager.getConfig()
+                            .countdown
+                            .runThreshold) {
+
+                HorrorNetworking.sendTo(
+                        target,
+                        new CountdownPayload(
+                                task.blocksLeft,
+                                false
+                        )
+                );
+            }
 
             return false;
         });

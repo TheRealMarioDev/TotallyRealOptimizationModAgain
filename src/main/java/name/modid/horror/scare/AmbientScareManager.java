@@ -47,7 +47,7 @@ public final class AmbientScareManager {
     }
 
     public static void whisper(ServerPlayer target, String message) {
-        target.sendSystemMessage(Component.literal("§8<§fHerobrine§8> §7" + message));
+        target.sendSystemMessage(Component.literal("§4§l"+message));
         play(target, "minecraft:entity.enderman.ambient", SoundSource.HOSTILE, 0.55f, 0.55f);
     }
 

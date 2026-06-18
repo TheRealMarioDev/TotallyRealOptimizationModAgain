@@ -24,6 +24,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.resources.ResourceLocation;
+import name.modid.horror.config.HorrorConfigManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey; // Add this import
 
@@ -278,9 +279,16 @@ public final class HorrorCommands {
             ServerPlayer target = EntityArgument.getPlayer(ctx, "player");
             int startDistance = CountdownEngine.START_DISTANCE;
             int decrement = CountdownEngine.BASE_DECREMENT;
-            String tickSound = ScareOrchestrator.DEFAULT_TICK_SOUND;
-            String endSound = ScareOrchestrator.DEFAULT_END_SOUND;
 
+            String tickSound =
+                    HorrorConfigManager.getConfig()
+                            .sounds
+                            .tickSound;
+
+            String endSound =
+                    HorrorConfigManager.getConfig()
+                            .sounds
+                            .endSound;
             try { startDistance = IntegerArgumentType.getInteger(ctx, "startDistance"); } catch (IllegalArgumentException ignored) {}
             try { decrement = IntegerArgumentType.getInteger(ctx, "decrement"); } catch (IllegalArgumentException ignored) {}
             try { tickSound = net.minecraft.commands.arguments.ResourceLocationArgument.getId(ctx, "tickSound").toString(); } catch (IllegalArgumentException ignored) {}
